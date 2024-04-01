@@ -24,13 +24,13 @@ RUN adduser \
     --uid "${UID}" \
     appuser
 
-# Download dependencies as a separate step to take advantage of Docker's caching.
-# Leverage a cache mount to /root/.cache/pip to speed up subsequent builds.
-# Leverage a bind mount to requirements.txt to avoid having to copy them into
-# into this layer.
-RUN --mount=type=cache,target=/root/.cache/pip \
-    --mount=type=bind,source=requirements.txt,target=requirements.txt \
-    python3 -m pip install -r requirements.txt
+# Install necessary build tools and dependencies
+RUN apk update && \
+    apk add --no-cache build-base musl-dev python3-dev
+
+# Install Python packages from requirements.txt
+COPY requirements.txt /app/requirements.txt
+RUN python3 -m pip install --no-cache-dir -r requirements.txt
 
 # Switch to the non-privileged user to run the application.
 USER appuser
@@ -39,9 +39,7 @@ USER appuser
 COPY counter-service.py .
 
 # Expose the port that the application listens on.
-# In most Unix-like operating systems, binding to ports below 1024 requires elevated privileges.
-# This application runs on Docker as an appuser, which is restricted to binding to ports below 1024.
 EXPOSE 8080
 
-# Run the application.Logs enabled to see the output logs
+# Run the application
 CMD ["gunicorn", "counter-service:app", "--bind", "0.0.0.0:8080", "--access-logfile", "-", "--error-logfile", "-"]
